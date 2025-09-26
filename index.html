@@ -58,7 +58,10 @@
     let currentStroke = 0;
     let totalStrokes = 0;
 
-    // 한자 불러오기 버튼 클릭
+    // helper: 일정 시간 후 실행되는 Promise
+    const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+    // 한자 불러오기 버튼
     document.getElementById('loadBtn').addEventListener('click', async () => {
       const char = document.getElementById('charInput').value.trim();
       if (!char) return;
@@ -69,7 +72,7 @@
       document.getElementById('drawBtn').disabled = true;
       currentStroke = 0;
 
-      // HanziWriter 생성
+      // writer 생성
       writer = HanziWriter.create('stage', char, {
         width: 260,
         height: 260,
@@ -81,25 +84,39 @@
         strokeAnimationSpeed: 1
       });
 
-      // 글자 데이터 로딩 완료 대기
+      // 완전히 로딩될 때까지 대기
       await writer.loadingComplete();
 
-      // 약간의 지연 후 획 수 파악 → 버튼 활성화
-      setTimeout(() => {
-        totalStrokes = writer.getStrokeCount();
-        console.log('획 수:', totalStrokes);
+      // 추가 지연 후에 getStrokeCount() → 안정성 확보
+      await delay(100);  // 100ms 기다림
 
-        if (totalStrokes > 0) {
-          document.getElementById('drawBtn').disabled = false;
-          document.getElementById('message').textContent =
-            `총 ${totalStrokes}획 중 0획 그렸습니다.`;
-        } else {
-          document.getElementById('message').textContent =
-            `획 정보를 불러오지 못했습니다.`;
-        }
-      }, 100);
+      totalStrokes = writer.getStrokeCount();
+      console.log('획 수:', totalStrokes);
+
+      if (totalStrokes > 0) {
+        document.getElementById('drawBtn').disabled = false;
+        document.getElementById('message').textContent = `총 ${totalStrokes}획 중 0획 그렸습니다.`;
+      } else {
+        document.getElementById('message').textContent = `획 정보를 불러오지 못했습니다.`;
+      }
     });
 
-    // 다음 획 그리기 버튼 클릭
+    // 다음 획 그리기 버튼
     document.getElementById('drawBtn').addEventListener('click', async () => {
-      if (!writer || currentStroke >= totalStrokes) return
+      if (!writer || currentStroke >= totalStrokes) return;
+
+      await writer.drawStroke(currentStroke);
+      currentStroke++;
+
+      document.getElementById('message').textContent =
+        `총 ${totalStrokes}획 중 ${currentStroke}획 그렸습니다.`;
+
+      if (currentStroke >= totalStrokes) {
+        document.getElementById('message').textContent += ' (완료)';
+        document.getElementById('drawBtn').disabled = true;
+      }
+    });
+  </script>
+
+</body>
+</html>
