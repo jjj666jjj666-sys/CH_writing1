@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <title>한자 쓰기: 한 획씩 그리기</title>
+  <script src="https://cdn.jsdelivr.net/npm/hanzi-writer@latest/dist/hanzi-writer.min.js"></script>
+  <style>
+    body {
+      font-family: system-ui, sans-serif;
+      margin: 28px;
+    }
+
+    #stage {
+      width: 260px;
+      height: 260px;
+      border: 1px solid #bbb;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #fff;
+    }
+
+    #controls {
+      display: flex;
+      gap: 10px;
+      margin: 20px 0;
+      align-items: center;
+    }
+
+    #message {
+      margin-top: 12px;
+      font-size: 14px;
+      color: #555;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>한자 쓰기: 한 획씩 그리기</h1>
+
+  <div id="controls">
+    <input id="charInput" type="text" value="永" style="width: 80px;" maxlength="1" />
+    <button id="loadBtn">한자 불러오기</button>
+    <button id="drawBtn" disabled>다음 획 그리기</button>
+  </div>
+
+  <div id="stage"></div>
+  <div id="message"></div>
+
+  <script>
+    let writer = null;
+    let currentStroke = 0;
+    let totalStrokes = 0;
+
+    document.getElementById('loadBtn').addEventListener('click', () => {
+      const char = document.getElementById('charInput').value.trim();
+      if (!char) return;
+
+      // 초기화
+      document.getElementById('stage').innerHTML = '';
+      document.getElementById('message').textContent = '';
+      currentStroke = 0;
+
+      // 한자 로드
+      writer = HanziWriter.create('stage', char, {
+        width: 260,
+        height: 260,
+        padding: 10,
+        showOutline: true,
+        showCharacter: false,
+        strokeColor: '#394955',
+        delayBetweenStrokes: 0,
+        strokeAnimationSpeed: 1
+      });
+
+      // 획 개수 파악
+      writer._characterLoaded.then(() => {
+        totalStrokes = writer.getStrokeCount();
+        document.getElementById('drawBtn').disabled = false;
+        document.getElementById('message').textContent = `총 ${totalStrokes}획 중 0획 그렸습니다.`;
+      });
+    });
+
+    document.getElementById('drawBtn').addEventListener('click', () => {
+      if (!writer || currentStroke >= totalStrokes) return;
+
+      writer.drawStroke(currentStroke)
+        .then(() => {
+          currentStroke++;
+          document.getElementById('message').textContent = `총 ${totalStrokes}획 중 ${currentStroke}획 그렸습니다.`;
+
+          if (currentStroke >= totalStrokes) {
+            document.getElementById('message').textContent += ' (완료)';
+            document.getElementById('drawBtn').disabled = true;
+          }
+        });
+    });
+  </script>
+
+</body>
+</html>
