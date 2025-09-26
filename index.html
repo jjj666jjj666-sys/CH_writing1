@@ -53,16 +53,17 @@
     let currentStroke = 0;
     let totalStrokes = 0;
 
-    document.getElementById('loadBtn').addEventListener('click', () => {
+    document.getElementById('loadBtn').addEventListener('click', async () => {
       const char = document.getElementById('charInput').value.trim();
       if (!char) return;
 
       // 초기화
       document.getElementById('stage').innerHTML = '';
       document.getElementById('message').textContent = '';
+      document.getElementById('drawBtn').disabled = true;
       currentStroke = 0;
 
-      // 한자 로드
+      // 한자 생성
       writer = HanziWriter.create('stage', char, {
         width: 260,
         height: 260,
@@ -74,12 +75,11 @@
         strokeAnimationSpeed: 1
       });
 
-      // 획 개수 파악
-      writer._characterLoaded.then(() => {
-        totalStrokes = writer.getStrokeCount();
-        document.getElementById('drawBtn').disabled = false;
-        document.getElementById('message').textContent = `총 ${totalStrokes}획 중 0획 그렸습니다.`;
-      });
+      // 로딩 완료 대기 후 획 수 확인 및 버튼 활성화
+      await writer.loadingComplete();
+      totalStrokes = writer.getStrokeCount();
+      document.getElementById('drawBtn').disabled = false;
+      document.getElementById('message').textContent = `총 ${totalStrokes}획 중 0획 그렸습니다.`;
     });
 
     document.getElementById('drawBtn').addEventListener('click', () => {
@@ -88,7 +88,8 @@
       writer.drawStroke(currentStroke)
         .then(() => {
           currentStroke++;
-          document.getElementById('message').textContent = `총 ${totalStrokes}획 중 ${currentStroke}획 그렸습니다.`;
+          document.getElementById('message').textContent =
+            `총 ${totalStrokes}획 중 ${currentStroke}획 그렸습니다.`;
 
           if (currentStroke >= totalStrokes) {
             document.getElementById('message').textContent += ' (완료)';
