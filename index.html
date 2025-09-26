@@ -1,177 +1,131 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-  <meta charset="UTF-8" />
-  <title>한자 쓰기 + 자동 스냅샷</title>
-  <script src="https://cdn.jsdelivr.net/npm/hanzi-writer@latest/dist/hanzi-writer.min.js"></script>
+  <meta charset="UTF-8">
+  <title>한자 쓰기: 한 획씩 그리기 + 타일 저장</title>
+  <script src="https://unpkg.com/hanzi-writer@2.1.2/dist/hanzi-writer.min.js"></script>
   <style>
     body {
-      font-family: system-ui, sans-serif;
-      margin: 30px;
+      font-family: sans-serif;
+      text-align: center;
     }
-
-    #stage {
-      width: 260px;
-      height: 260px;
-      border: 1px solid #ccc;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      border-radius: 8px;
-      background: #fff;
+    #writer-container {
+      width: 300px;
+      height: 300px;
+      margin: 20px auto;
+      border: 2px solid #ccc;
+      border-radius: 12px;
     }
-
-    #controls {
-      margin: 20px 0;
-      display: flex;
-      gap: 10px;
-      align-items: center;
-    }
-
-    #tiles {
+    .tile-container {
       display: flex;
       flex-wrap: wrap;
-      gap: 10px;
+      justify-content: center;
+      gap: 5px;
       margin-top: 20px;
     }
-
-    .tile {
-      width: 96px;
-      height: 96px;
-      border: 1px solid #ddd;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      border-radius: 6px;
-      background: #fff;
+    .tile-container img {
+      width: 60px;
+      height: 60px;
+      border: 1px solid #ccc;
     }
-
-    .tile img {
-      width: 90px;
-      height: 90px;
-      object-fit: contain;
-    }
-
     button:disabled {
-      opacity: 0.5;
-      cursor: not-allowed;
+      opacity: 0.4;
     }
   </style>
 </head>
 <body>
 
-  <h1>한자 획순 쓰기 + 장면 저장</h1>
+  <h1>한자 쓰기: 한 획씩 그리기 + 타일 저장</h1>
 
-  <div id="controls">
-    <input id="charInput" type="text" value="永" maxlength="1" />
-    <button id="loadBtn">한자 불러오기</button>
-    <button id="drawBtn" disabled>다음 획 그리기</button>
-  </div>
+  <input type="text" id="charInput" value="瞳" maxlength="1" style="font-size:18px;">
+  <button id="loadBtn">한자 불러오기</button>
+  <button id="nextStrokeBtn" disabled>다음 획 그리기</button>
 
-  <div id="stage"></div>
-  <div id="tiles"></div>
+  <div id="writer-container"></div>
+
+  <div class="tile-container" id="snapshotTiles"></div>
 
   <script>
     let writer = null;
-    let currentStroke = 0;
+    let currentStrokeIndex = 0;
     let totalStrokes = 0;
 
-    // SVG → PNG 변환 후 이미지 요소 반환
-    function snapshotStageToImg(size = 96) {
-      const svg = document.querySelector('#stage svg');
-      if (!svg) return Promise.resolve(null);
+    const writerContainer = document.getElementById('writer-container');
+    const loadBtn = document.getElementById('loadBtn');
+    const nextStrokeBtn = document.getElementById('nextStrokeBtn');
+    const snapshotTiles = document.getElementById('snapshotTiles');
 
-      const serializer = new XMLSerializer();
-      let svgStr = serializer.serializeToString(svg);
-      if (!svgStr.startsWith('<?xml')) {
-        svgStr = '<?xml version="1.0" standalone="no"?>\n' + svgStr;
-      }
-
-      const svgUrl = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svgStr);
-      const img = new Image();
-      img.src = svgUrl;
-
-      return new Promise(resolve => {
-        img.onload = () => {
-          const vb = svg.viewBox.baseVal;
-          const w = vb?.width || svg.clientWidth || 260;
-          const h = vb?.height || svg.clientHeight || 260;
-          const scale = size / Math.max(w, h);
-
-          const canvas = document.createElement('canvas');
-          canvas.width = w * scale;
-          canvas.height = h * scale;
-          const ctx = canvas.getContext('2d');
-          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-
-          const out = new Image();
-          out.src = canvas.toDataURL('image/png');
-          out.width = size;
-          out.height = size;
-          resolve(out);
-        };
-        img.onerror = () => resolve(null);
-      });
-    }
-
-    // 이미지 타일 추가
-    async function saveSnapshot() {
-      const img = await snapshotStageToImg();
-      if (img) {
-        const tile = document.createElement('div');
-        tile.className = 'tile';
-        tile.appendChild(img);
-        document.getElementById('tiles').appendChild(tile);
-      }
-    }
-
-    // 한자 불러오기
-    document.getElementById('loadBtn').addEventListener('click', async () => {
+    // Load character
+    loadBtn.addEventListener('click', async () => {
       const char = document.getElementById('charInput').value.trim();
       if (!char) return;
 
-      document.getElementById('stage').innerHTML = '';
-      document.getElementById('tiles').innerHTML = '';
-      document.getElementById('drawBtn').disabled = true;
-      currentStroke = 0;
+      writerContainer.innerHTML = '';
+      snapshotTiles.innerHTML = '';
+      currentStrokeIndex = 0;
 
-      writer = HanziWriter.create('stage', char, {
-        width: 260,
-        height: 260,
-        padding: 10,
+      writer = HanziWriter.create('writer-container', char, {
+        width: 300,
+        height: 300,
+        padding: 5,
+        strokeAnimationSpeed: 1.2,
+        delayBetweenStrokes: 300,
         showOutline: true,
         showCharacter: false,
-        strokeColor: '#333',
-        delayBetweenStrokes: 0,
-        strokeAnimationSpeed: 1.0,
+        strokeColor: '#000'
       });
 
-      await writer._characterLoaded;
-
+      await writer.hideCharacter();
+      await writer.animateCharacter();
+      await writer.showOutline();
       totalStrokes = writer.getStrokeCount();
+      nextStrokeBtn.disabled = false;
 
-      if (totalStrokes > 0) {
-        // 첫 획 자동 그리기
-        await writer.drawStroke(currentStroke);
-        await saveSnapshot();
-        currentStroke++;
+      // Clear all strokes and show outline only
+      await writer.hideCharacter();
+      await writer.showOutline();
+    });
 
-        document.getElementById('drawBtn').disabled = false;
+    // Draw one stroke at a time
+    nextStrokeBtn.addEventListener('click', async () => {
+      if (!writer || currentStrokeIndex >= totalStrokes) {
+        nextStrokeBtn.disabled = true;
+        return;
+      }
+
+      await writer.animateStroke(currentStrokeIndex);
+      await captureSnapshot();  // Capture after stroke
+      currentStrokeIndex++;
+
+      if (currentStrokeIndex >= totalStrokes) {
+        nextStrokeBtn.disabled = true;
       }
     });
 
-    // 다음 획 그리기 버튼
-    document.getElementById('drawBtn').addEventListener('click', async () => {
-      if (!writer || currentStroke >= totalStrokes) return;
+    // Capture canvas as image
+    async function captureSnapshot() {
+      const svgElem = writerContainer.querySelector('svg');
+      const svgData = new XMLSerializer().serializeToString(svgElem);
+      const svgBlob = new Blob([svgData], { type: "image/svg+xml;charset=utf-8" });
+      const url = URL.createObjectURL(svgBlob);
 
-      await writer.drawStroke(currentStroke);
-      await saveSnapshot();
-      currentStroke++;
+      const img = new Image();
+      img.onload = function () {
+        const canvas = document.createElement('canvas');
+        canvas.width = 100;
+        canvas.height = 100;
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
 
-      if (currentStroke >= totalStrokes) {
-        document.getElementById('drawBtn').disabled = true;
-      }
-    });
+        const imgTag = document.createElement('img');
+        imgTag.src = canvas.toDataURL("image/png");
+        snapshotTiles.appendChild(imgTag);
+        URL.revokeObjectURL(url);
+      };
+      img.src = url;
+    }
   </script>
 
 </body>
