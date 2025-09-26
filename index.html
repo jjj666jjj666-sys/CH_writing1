@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8" />
-  <title>한자 쓰기: 한 획씩 그리기</title>
+  <title>한자 쓰기: 한 획씩 그리기 + 타일 저장</title>
   <script src="https://cdn.jsdelivr.net/npm/hanzi-writer@latest/dist/hanzi-writer.min.js"></script>
   <style>
     body {
@@ -34,6 +34,30 @@
       color: #555;
     }
 
+    #tiles {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 20px;
+    }
+
+    .tile {
+      width: 96px;
+      height: 96px;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      background: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .tile img {
+      width: 90px;
+      height: 90px;
+      object-fit: contain;
+    }
+
     button:disabled {
       opacity: 0.5;
       cursor: not-allowed;
@@ -42,7 +66,7 @@
 </head>
 <body>
 
-  <h1>한자 쓰기: 한 획씩 그리기</h1>
+  <h1>한자 쓰기: 한 획씩 그리기 + 타일 저장</h1>
 
   <div id="controls">
     <input id="charInput" type="text" value="永" style="width: 80px;" maxlength="1" />
@@ -53,21 +77,60 @@
   <div id="stage"></div>
   <div id="message"></div>
 
+  <!-- 획별 스냅샷 이미지 타일 -->
+  <div id="tiles"></div>
+
   <script>
     let writer = null;
     let currentStroke = 0;
     let totalStrokes = 0;
 
-    // helper: 일정 시간 후 실행되는 Promise
-    const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+    // SVG → PNG로 변환 후 <img>로 반환
+    function snapshotStageToImg(size = 96) {
+      const svg = document.querySelector('#stage svg');
+      if (!svg) return Promise.resolve(null);
 
-    // 한자 불러오기 버튼
+      const serializer = new XMLSerializer();
+      let svgStr = serializer.serializeToString(svg);
+      if (!svgStr.startsWith('<?xml')) {
+        svgStr = '<?xml version="1.0" standalone="no"?>\n' + svgStr;
+      }
+
+      const svgUrl = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svgStr);
+      const img = new Image();
+      img.src = svgUrl;
+
+      return new Promise(resolve => {
+        img.onload = () => {
+          const vb = svg.viewBox.baseVal;
+          const w = vb?.width || svg.clientWidth || 260;
+          const h = vb?.height || svg.clientHeight || 260;
+          const scale = size / Math.max(w, h);
+
+          const canvas = document.createElement('canvas');
+          canvas.width = w * scale;
+          canvas.height = h * scale;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+          const out = new Image();
+          out.src = canvas.toDataURL('image/png');
+          out.width = size;
+          out.height = size;
+          resolve(out);
+        };
+        img.onerror = () => resolve(null);
+      });
+    }
+
+    // 한자 불러오기 버튼 클릭
     document.getElementById('loadBtn').addEventListener('click', async () => {
       const char = document.getElementById('charInput').value.trim();
       if (!char) return;
 
       // 초기화
       document.getElementById('stage').innerHTML = '';
+      document.getElementById('tiles').innerHTML = '';
       document.getElementById('message').textContent = '';
       document.getElementById('drawBtn').disabled = true;
       currentStroke = 0;
@@ -84,30 +147,40 @@
         strokeAnimationSpeed: 1
       });
 
-      // 완전히 로딩될 때까지 대기
-      await writer.loadingComplete();
-
-      // 추가 지연 후에 getStrokeCount() → 안정성 확보
-      await delay(100);  // 100ms 기다림
+      // 로딩 완료까지 대기
+      await writer._characterLoaded;
 
       totalStrokes = writer.getStrokeCount();
       console.log('획 수:', totalStrokes);
 
       if (totalStrokes > 0) {
         document.getElementById('drawBtn').disabled = false;
-        document.getElementById('message').textContent = `총 ${totalStrokes}획 중 0획 그렸습니다.`;
+        document.getElementById('message').textContent =
+          `총 ${totalStrokes}획 중 0획 그렸습니다.`;
       } else {
         document.getElementById('message').textContent = `획 정보를 불러오지 못했습니다.`;
       }
     });
 
-    // 다음 획 그리기 버튼
+    // 다음 획 그리기 버튼 클릭
     document.getElementById('drawBtn').addEventListener('click', async () => {
       if (!writer || currentStroke >= totalStrokes) return;
 
+      // 한 획 애니메이션 실행
       await writer.drawStroke(currentStroke);
+
+      // 스냅샷 이미지 생성
+      const img = await snapshotStageToImg();
+      if (img) {
+        const tile = document.createElement('div');
+        tile.className = 'tile';
+        tile.appendChild(img);
+        document.getElementById('tiles').appendChild(tile);
+      }
+
       currentStroke++;
 
+      // 메시지 업데이트
       document.getElementById('message').textContent =
         `총 ${totalStrokes}획 중 ${currentStroke}획 그렸습니다.`;
 
