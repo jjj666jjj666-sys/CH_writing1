@@ -2,42 +2,36 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8" />
-  <title>한자 쓰기: 한 획씩 그리기 + 타일 저장</title>
+  <title>한자 쓰기 + 자동 스냅샷</title>
   <script src="https://cdn.jsdelivr.net/npm/hanzi-writer@latest/dist/hanzi-writer.min.js"></script>
   <style>
     body {
       font-family: system-ui, sans-serif;
-      margin: 28px;
+      margin: 30px;
     }
 
     #stage {
       width: 260px;
       height: 260px;
-      border: 1px solid #bbb;
-      border-radius: 8px;
+      border: 1px solid #ccc;
       display: flex;
       align-items: center;
       justify-content: center;
+      border-radius: 8px;
       background: #fff;
     }
 
     #controls {
+      margin: 20px 0;
       display: flex;
       gap: 10px;
-      margin: 20px 0;
       align-items: center;
-    }
-
-    #message {
-      margin-top: 12px;
-      font-size: 14px;
-      color: #555;
     }
 
     #tiles {
       display: flex;
       flex-wrap: wrap;
-      gap: 8px;
+      gap: 10px;
       margin-top: 20px;
     }
 
@@ -45,11 +39,11 @@
       width: 96px;
       height: 96px;
       border: 1px solid #ddd;
-      border-radius: 6px;
-      background: #fff;
       display: flex;
       align-items: center;
       justify-content: center;
+      border-radius: 6px;
+      background: #fff;
     }
 
     .tile img {
@@ -66,18 +60,15 @@
 </head>
 <body>
 
-  <h1>한자 쓰기: 한 획씩 그리기 + 타일 저장</h1>
+  <h1>한자 획순 쓰기 + 장면 저장</h1>
 
   <div id="controls">
-    <input id="charInput" type="text" value="永" style="width: 80px;" maxlength="1" />
+    <input id="charInput" type="text" value="永" maxlength="1" />
     <button id="loadBtn">한자 불러오기</button>
     <button id="drawBtn" disabled>다음 획 그리기</button>
   </div>
 
   <div id="stage"></div>
-  <div id="message"></div>
-
-  <!-- 획별 스냅샷 이미지 타일 -->
   <div id="tiles"></div>
 
   <script>
@@ -85,7 +76,7 @@
     let currentStroke = 0;
     let totalStrokes = 0;
 
-    // SVG → PNG로 변환 후 <img>로 반환
+    // SVG → PNG 변환 후 이미지 요소 반환
     function snapshotStageToImg(size = 96) {
       const svg = document.querySelector('#stage svg');
       if (!svg) return Promise.resolve(null);
@@ -123,53 +114,8 @@
       });
     }
 
-    // 한자 불러오기 버튼 클릭
-    document.getElementById('loadBtn').addEventListener('click', async () => {
-      const char = document.getElementById('charInput').value.trim();
-      if (!char) return;
-
-      // 초기화
-      document.getElementById('stage').innerHTML = '';
-      document.getElementById('tiles').innerHTML = '';
-      document.getElementById('message').textContent = '';
-      document.getElementById('drawBtn').disabled = true;
-      currentStroke = 0;
-
-      // writer 생성
-      writer = HanziWriter.create('stage', char, {
-        width: 260,
-        height: 260,
-        padding: 10,
-        showOutline: true,
-        showCharacter: false,
-        strokeColor: '#394955',
-        delayBetweenStrokes: 0,
-        strokeAnimationSpeed: 1
-      });
-
-      // 로딩 완료까지 대기
-      await writer._characterLoaded;
-
-      totalStrokes = writer.getStrokeCount();
-      console.log('획 수:', totalStrokes);
-
-      if (totalStrokes > 0) {
-        document.getElementById('drawBtn').disabled = false;
-        document.getElementById('message').textContent =
-          `총 ${totalStrokes}획 중 0획 그렸습니다.`;
-      } else {
-        document.getElementById('message').textContent = `획 정보를 불러오지 못했습니다.`;
-      }
-    });
-
-    // 다음 획 그리기 버튼 클릭
-    document.getElementById('drawBtn').addEventListener('click', async () => {
-      if (!writer || currentStroke >= totalStrokes) return;
-
-      // 한 획 애니메이션 실행
-      await writer.drawStroke(currentStroke);
-
-      // 스냅샷 이미지 생성
+    // 이미지 타일 추가
+    async function saveSnapshot() {
       const img = await snapshotStageToImg();
       if (img) {
         const tile = document.createElement('div');
@@ -177,15 +123,52 @@
         tile.appendChild(img);
         document.getElementById('tiles').appendChild(tile);
       }
+    }
 
+    // 한자 불러오기
+    document.getElementById('loadBtn').addEventListener('click', async () => {
+      const char = document.getElementById('charInput').value.trim();
+      if (!char) return;
+
+      document.getElementById('stage').innerHTML = '';
+      document.getElementById('tiles').innerHTML = '';
+      document.getElementById('drawBtn').disabled = true;
+      currentStroke = 0;
+
+      writer = HanziWriter.create('stage', char, {
+        width: 260,
+        height: 260,
+        padding: 10,
+        showOutline: true,
+        showCharacter: false,
+        strokeColor: '#333',
+        delayBetweenStrokes: 0,
+        strokeAnimationSpeed: 1.0,
+      });
+
+      await writer._characterLoaded;
+
+      totalStrokes = writer.getStrokeCount();
+
+      if (totalStrokes > 0) {
+        // 첫 획 자동 그리기
+        await writer.drawStroke(currentStroke);
+        await saveSnapshot();
+        currentStroke++;
+
+        document.getElementById('drawBtn').disabled = false;
+      }
+    });
+
+    // 다음 획 그리기 버튼
+    document.getElementById('drawBtn').addEventListener('click', async () => {
+      if (!writer || currentStroke >= totalStrokes) return;
+
+      await writer.drawStroke(currentStroke);
+      await saveSnapshot();
       currentStroke++;
 
-      // 메시지 업데이트
-      document.getElementById('message').textContent =
-        `총 ${totalStrokes}획 중 ${currentStroke}획 그렸습니다.`;
-
       if (currentStroke >= totalStrokes) {
-        document.getElementById('message').textContent += ' (완료)';
         document.getElementById('drawBtn').disabled = true;
       }
     });
