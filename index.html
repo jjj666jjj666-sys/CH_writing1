@@ -58,7 +58,7 @@
     let currentStroke = 0;
     let totalStrokes = 0;
 
-    // "한자 불러오기" 버튼 클릭 시
+    // 한자 불러오기 버튼 클릭
     document.getElementById('loadBtn').addEventListener('click', async () => {
       const char = document.getElementById('charInput').value.trim();
       if (!char) return;
@@ -69,7 +69,7 @@
       document.getElementById('drawBtn').disabled = true;
       currentStroke = 0;
 
-      // 한자 생성
+      // HanziWriter 생성
       writer = HanziWriter.create('stage', char, {
         width: 260,
         height: 260,
@@ -81,33 +81,25 @@
         strokeAnimationSpeed: 1
       });
 
-      // 로딩 완료 대기 후 획 수 확인 및 버튼 활성화
+      // 글자 데이터 로딩 완료 대기
       await writer.loadingComplete();
-      totalStrokes = writer.getStrokeCount();
 
-      // 버튼 활성화 및 안내
-      document.getElementById('drawBtn').disabled = false;
-      document.getElementById('message').textContent = `총 ${totalStrokes}획 중 0획 그렸습니다.`;
+      // 약간의 지연 후 획 수 파악 → 버튼 활성화
+      setTimeout(() => {
+        totalStrokes = writer.getStrokeCount();
+        console.log('획 수:', totalStrokes);
+
+        if (totalStrokes > 0) {
+          document.getElementById('drawBtn').disabled = false;
+          document.getElementById('message').textContent =
+            `총 ${totalStrokes}획 중 0획 그렸습니다.`;
+        } else {
+          document.getElementById('message').textContent =
+            `획 정보를 불러오지 못했습니다.`;
+        }
+      }, 100);
     });
 
-    // "다음 획 그리기" 버튼 클릭 시
+    // 다음 획 그리기 버튼 클릭
     document.getElementById('drawBtn').addEventListener('click', async () => {
-      if (!writer || currentStroke >= totalStrokes) return;
-
-      await writer.drawStroke(currentStroke);
-      currentStroke++;
-
-      // 진행 상황 텍스트 업데이트
-      document.getElementById('message').textContent =
-        `총 ${totalStrokes}획 중 ${currentStroke}획 그렸습니다.`;
-
-      // 마지막 획이면 버튼 비활성화
-      if (currentStroke >= totalStrokes) {
-        document.getElementById('message').textContent += ' (완료)';
-        document.getElementById('drawBtn').disabled = true;
-      }
-    });
-  </script>
-
-</body>
-</html>
+      if (!writer || currentStroke >= totalStrokes) return
